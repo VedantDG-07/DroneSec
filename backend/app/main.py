@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator, Optional
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.app.api.routes import router
 from backend.app.api.schemas import ErrorDetail, StandardErrorResponse
@@ -206,6 +208,11 @@ def create_app(
 
     # Include REST & WebSocket Routes
     app.include_router(router)
+
+    # Mount static frontend files if directory exists
+    frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+    if frontend_dir.exists():
+        app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 
     return app
 

@@ -3,7 +3,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Cryptography](https://img.shields.io/badge/Cryptography-AES--256--GCM-green.svg)](https://cryptography.io)
-[![Tests](https://img.shields.io/badge/tests-170%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-173%20passed-brightgreen.svg)]()
 
 **DroneSec** is an enterprise-grade, software-in-the-loop (SITL) simulation and security benchmarking platform for Unmanned Aerial Vehicle (UAV) to Ground Control Station (GCS) telemetry and command communications. 
 
@@ -54,6 +54,14 @@ State version numbers are guaranteed to be strictly monotonic: $S_{t+1}.\text{st
 ### 5. High-Throughput Real-Time Telemetry & Audit Persistence
 - **WebSocket Telemetry Stream:** Low-latency ($10\text{–}20\text{ Hz}$) state broadcasting with bidirectional `PING`/`PONG` keepalive monitoring.
 - **SQLite WAL Persistence:** Write-Ahead Logging (WAL) storage recording command logs, security events, and complete cyberattack audit trails with zero reader/writer contention.
+
+### 6. Interactive 3D Simulation World & Ground Control Station (GCS)
+- **Tactical Dark HUD Interface:** Glassmorphism UI cards, real-time Primary Flight Display (PFD) gauges, live battery drain meter, and compass cardinal orientation.
+- **Three.js WebGL Simulation World:** Low-poly procedural island terrain, landing helipad, control tower with flashing beacon, hangars, communication radar, and spatial geofence envelope.
+- **Deterministic Procedural Quadcopter:** 4 dynamically rotating propeller rotors, orientation gimbal, navigation strobes, belly state beacon, and real-time shadow projection.
+- **Dynamic Flight Trail:** Continuous breadcrumb trajectory tracking past flight paths.
+- **Multiple Tactical Camera Modes:** Free Orbit, Drone Chase Cam, Top-Down Orthographic Tactical View, and Airfield Control Tower View.
+- **Integrated Attack Console & Audit Log:** Interactive execution of all 6 cyberattack scenarios with visual feedback of exploit versus mitigation outcomes and real-time event logs.
 
 ---
 
@@ -174,7 +182,7 @@ Drone security/
 │   │       ├── database.py             # SQLite WAL connection & schema migration
 │   │       └── repositories.py         # Command, Security, and Attack audit repositories
 │   │
-│   └── tests/                          # Automated Verification Suite (170 tests)
+│   └── tests/                          # Automated Verification Suite (173 tests)
 │       ├── test_coordinates.py         # Geodesic math, precision, and edge cases
 │       ├── test_flight_fsm.py          # Flight state machine state transitions
 │       ├── test_drone_engine.py        # Drone kinematics, battery, and geofencing
@@ -186,7 +194,24 @@ Drone security/
 │       ├── test_rate_limiter.py        # Token bucket burst, refill, and concurrency
 │       ├── test_security_service.py    # Security mode transitions & pipeline execution
 │       ├── test_attack_scenarios.py    # ATK-01 to ATK-06 vulnerability & defense tests
-│       └── test_state_invariants.py    # Mathematical state invariants & audit persistence
+│       ├── test_state_invariants.py    # Mathematical state invariants & audit persistence
+│       └── test_frontend.py            # Static GCS serving, asset delivery & route precedence
+│
+├── frontend/                           # Ground Control Station Web Application
+│   ├── index.html                      # Tactical GCS interface markup
+│   ├── css/
+│   │   └── gcs.css                     # Tactical dark theme, HUD styling & glassmorphism
+│   └── js/
+│       ├── app.js                      # Main GCS application coordinator
+│       ├── simulation.js               # Three.js 3D world, procedural terrain & drone model
+│       ├── telemetry.js                # WebSocket telemetry client & heartbeat manager
+│       ├── flight_controls.js          # REST command dispatcher & FSM button constraints
+│       ├── security_panel.js           # Security status & dynamic mode switcher
+│       ├── attack_console.js           # Cyberattack console & invariant report cards
+│       ├── event_log.js                # Live audit log table & JSON exporter
+│       └── vendor/
+│           ├── three.module.js         # Offline Three.js 3D WebGL graphics library
+│           └── OrbitControls.js        # Three.js camera interaction controls
 │
 ├── data/                               # Persistent SQLite database storage
 ├── requirements.txt                    # Project dependencies
@@ -226,13 +251,14 @@ pip install -r requirements.txt
 
 ## Running the Application
 
-Start the DroneSec simulation backend with Uvicorn:
+Start the DroneSec simulation backend and Ground Control Station with Uvicorn:
 
 ```bash
 uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Once launched:
+- **Ground Control Station (GCS) Dashboard:** [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 - **Interactive OpenAPI Documentation:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **Alternative ReDoc Documentation:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 - **Health Check Endpoint:** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
@@ -243,7 +269,7 @@ Once launched:
 
 ## Running the Automated Test Suite
 
-DroneSec includes a test suite with **170 automated tests** covering unit physics, cryptographic invariants, concurrency, WebSocket streaming, and cyberattack scenarios.
+DroneSec includes a test suite with **173 automated tests** covering unit physics, cryptographic invariants, concurrency, WebSocket streaming, cyberattack scenarios, and GCS frontend serving.
 
 ### Run All Tests
 ```bash
