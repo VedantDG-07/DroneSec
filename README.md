@@ -3,7 +3,6 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Cryptography](https://img.shields.io/badge/Cryptography-AES--256--GCM-green.svg)](https://cryptography.io)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-170%20passed-brightgreen.svg)]()
 
 **DroneSec** is an enterprise-grade, software-in-the-loop (SITL) simulation and security benchmarking platform for Unmanned Aerial Vehicle (UAV) to Ground Control Station (GCS) telemetry and command communications. 
@@ -277,6 +276,4 @@ pytest backend/tests/test_api.py backend/tests/test_websocket.py backend/tests/t
 
 ---
 
-## License
 
-This project is licensed under the MIT License.
