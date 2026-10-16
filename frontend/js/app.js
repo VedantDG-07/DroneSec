@@ -147,7 +147,7 @@ async function fetchInitialState(world, flightControls, updateTelemetryDisplay) 
     if (!res.ok) return;
 
     const body = await res.json();
-    if (body.success && body.data) {
+    if ((body.status === 'success' || body.success) && body.data) {
       const d = body.data;
       const flat = {
         state_version: d.state_version,

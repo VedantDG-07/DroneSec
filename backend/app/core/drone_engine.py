@@ -47,6 +47,8 @@ class DroneCommand(str, Enum):
     MOVE_BACKWARD = "MOVE_BACKWARD"
     MOVE_LEFT = "MOVE_LEFT"
     MOVE_RIGHT = "MOVE_RIGHT"
+    MOVE_UP = "MOVE_UP"
+    MOVE_DOWN = "MOVE_DOWN"
     STOP = "STOP"
     EMERGENCY_STOP = "EMERGENCY_STOP"
 
@@ -230,6 +232,8 @@ class DroneEngine:
             DroneCommand.MOVE_BACKWARD,
             DroneCommand.MOVE_LEFT,
             DroneCommand.MOVE_RIGHT,
+            DroneCommand.MOVE_UP,
+            DroneCommand.MOVE_DOWN,
         }:
             return self._handle_move(command, distance_meters, command_id)
         elif command == DroneCommand.STOP:
@@ -474,6 +478,7 @@ class DroneEngine:
 
         # Compute proposed target position and heading based on command
         target_x = self._x
+        target_y = self._y
         target_z = self._z
         target_heading = self._heading
 
@@ -489,6 +494,12 @@ class DroneEngine:
         elif command == DroneCommand.MOVE_RIGHT:
             target_x += step
             target_heading = 90.0  # East (+X)
+        elif command == DroneCommand.MOVE_UP:
+            target_y += step
+            # Heading is unchanged during vertical movement
+        elif command == DroneCommand.MOVE_DOWN:
+            target_y -= step
+            # Heading is unchanged during vertical movement
 
         # Validate geofence boundaries strictly
         if not (GEOFENCE_X_MIN <= target_x <= GEOFENCE_X_MAX):
@@ -513,6 +524,17 @@ class DroneEngine:
                 state_version=self._state_version,
                 error_code="BOUNDARY_LIMIT_EXCEEDED",
             )
+        if not (GEOFENCE_Y_MIN < target_y <= GEOFENCE_Y_MAX):
+            return CommandResult(
+                success=False,
+                command=command,
+                message=(
+                    f"Command rejected: target altitude Y={target_y:.2f}m exceeds geofence "
+                    f"({GEOFENCE_Y_MIN}m, {GEOFENCE_Y_MAX}m]."
+                ),
+                state_version=self._state_version,
+                error_code="BOUNDARY_LIMIT_EXCEEDED",
+            )
 
         # Apply state transition through MOVING to HOVERING upon step completion
         if self._fsm.current_state != FlightState.MOVING:
@@ -528,6 +550,7 @@ class DroneEngine:
 
         # Update authoritative state vector
         self._x = target_x
+        self._y = target_y
         self._z = target_z
         self._heading = target_heading
         self._speed = 0.0  # Discrete stepped model stabilizes to hover

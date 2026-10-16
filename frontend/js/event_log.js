@@ -77,7 +77,7 @@ export class EventLogConsole {
       if (!resp.ok) return;
 
       const body = await resp.json();
-      if (body.success && Array.isArray(body.data)) {
+      if ((body.status === 'success' || body.success) && Array.isArray(body.data)) {
         // Merge without duplicating existing IDs
         const existingIds = new Set(this.logs.map((l) => l.id));
         const newItems = body.data.filter((l) => !existingIds.has(l.id));

@@ -135,10 +135,13 @@ class CommandService:
                 error_message=f"Command '{command_str}' is not recognized.",
             )
 
-        # Extract movement parameter if provided
+        # Extract movement parameter if provided — accept both canonical 'distance_meters' and
+        # legacy 'distance' key that older clients may have sent.
         distance = None
         if parameters and "distance_meters" in parameters:
             distance = parameters["distance_meters"]
+        elif parameters and "distance" in parameters:
+            distance = parameters["distance"]
 
         # Critical Section: Execute command atomically under state_lock
         async with self.state_lock:

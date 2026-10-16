@@ -201,7 +201,8 @@ export class AttackConsole {
 
       const body = await resp.json();
 
-      if (resp.ok && body.success) {
+      // Backend envelope uses { status: "success"|"error", data/error: ... }
+      if (resp.ok && body.status === 'success') {
         this.renderAttackResult(body.data);
         this.notifyAttackComplete(body.data);
 
@@ -280,7 +281,7 @@ export class AttackConsole {
       const resp = await fetch(`${this.apiBase}/api/attacks/history?limit=25`);
       const body = await resp.json();
 
-      if (resp.ok && body.success && Array.isArray(body.data)) {
+      if (resp.ok && (body.status === 'success' || body.success) && Array.isArray(body.data)) {
         if (body.data.length === 0) {
           tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim);">No attack runs recorded yet.</td></tr>`;
           return;

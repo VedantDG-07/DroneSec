@@ -41,7 +41,7 @@ export class SecurityPanel {
       if (!resp.ok) return;
 
       const body = await resp.json();
-      if (body.success && body.data) {
+      if ((body.status === 'success' || body.success) && body.data) {
         this.renderStatus(body.data);
       }
     } catch (err) {
@@ -118,7 +118,7 @@ export class SecurityPanel {
       });
 
       const body = await resp.json();
-      if (resp.ok && body.success) {
+      if (resp.ok && (body.status === 'success' || body.success)) {
         this.currentMode = targetMode;
         this.updateHeaderModeButtons(targetMode);
         this.notifyToast(`Security profile updated to [${targetMode}]`, 'success');

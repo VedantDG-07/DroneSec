@@ -50,7 +50,7 @@ export class FlightControls {
     Object.entries(dpadMap).forEach(([id, cmd]) => {
       const el = document.getElementById(id);
       if (el) {
-        el.addEventListener('click', () => this.sendCommand(cmd, { distance: this.stepDistance }));
+        el.addEventListener('click', () => this.sendCommand(cmd, { distance_meters: this.stepDistance }));
       }
     });
 
@@ -71,25 +71,28 @@ export class FlightControls {
         return;
       }
 
+      // Suppress OS key-repeat events — only process the initial keydown stroke
+      if (e.repeat) return;
+
       const key = e.key.toUpperCase();
       switch (key) {
         case 'W':
-          this.sendCommand('MOVE_FORWARD', { distance: this.stepDistance });
+          this.sendCommand('MOVE_FORWARD', { distance_meters: this.stepDistance });
           break;
         case 'S':
-          this.sendCommand('MOVE_BACKWARD', { distance: this.stepDistance });
+          this.sendCommand('MOVE_BACKWARD', { distance_meters: this.stepDistance });
           break;
         case 'A':
-          this.sendCommand('MOVE_LEFT', { distance: this.stepDistance });
+          this.sendCommand('MOVE_LEFT', { distance_meters: this.stepDistance });
           break;
         case 'D':
-          this.sendCommand('MOVE_RIGHT', { distance: this.stepDistance });
+          this.sendCommand('MOVE_RIGHT', { distance_meters: this.stepDistance });
           break;
         case 'R':
-          this.sendCommand('MOVE_UP', { distance: this.stepDistance });
+          this.sendCommand('MOVE_UP', { distance_meters: this.stepDistance });
           break;
         case 'F':
-          this.sendCommand('MOVE_DOWN', { distance: this.stepDistance });
+          this.sendCommand('MOVE_DOWN', { distance_meters: this.stepDistance });
           break;
         case ' ':
           e.preventDefault();
@@ -149,7 +152,8 @@ export class FlightControls {
 
       const result = await response.json();
 
-      if (response.ok && result.success) {
+      // Backend envelope uses { status: "success"|"error", data/error: ... }
+      if (response.ok && result.status === 'success') {
         this.notifyToast(`Command [${command}] executed successfully.`, 'success');
         this.notifyCommandResult({ command, success: true, data: result.data });
       } else {
@@ -161,7 +165,7 @@ export class FlightControls {
       }
     } catch (netErr) {
       this.notifyToast(`Network Error: ${netErr.message}`, 'error');
-      this.notifyCommandResult({ command, success: false, error: netErr });
+      this.notifyCommandResult({ command, success: false, error: { code: 'NETWORK_ERROR', message: netErr.message } });
     } finally {
       this.isSubmitting = false;
     }
