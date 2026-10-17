@@ -129,6 +129,8 @@ export class AttackConsole {
             <option value="MOVE_FORWARD" ${sc.defaultCommand === 'MOVE_FORWARD' ? 'selected' : ''}>MOVE_FORWARD</option>
             <option value="ARM" ${sc.defaultCommand === 'ARM' ? 'selected' : ''}>ARM</option>
             <option value="TAKEOFF">TAKEOFF</option>
+            <option value="MOVE_UP">MOVE_UP</option>
+            <option value="MOVE_DOWN">MOVE_DOWN</option>
             <option value="MOVE_BACKWARD">MOVE_BACKWARD</option>
             <option value="MOVE_LEFT">MOVE_LEFT</option>
             <option value="MOVE_RIGHT">MOVE_RIGHT</option>
@@ -214,7 +216,8 @@ export class AttackConsole {
         }
       } else {
         const err = body.error || {};
-        this.notifyToast(`Attack execution failed: ${err.message || 'Error'}`, 'error');
+        const codePrefix = err.code ? `[${err.code}] ` : '';
+        this.notifyToast(`Attack execution rejected: ${codePrefix}${err.message || 'Unknown error'}`, 'error');
       }
     } catch (netErr) {
       this.notifyToast(`Network Error: ${netErr.message}`, 'error');

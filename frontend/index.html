@@ -58,6 +58,11 @@
           </button>
         </div>
 
+        <!-- Phase 6 Evaluation & Benchmarking Trigger -->
+        <button id="btn-open-evaluation" class="hud-btn" style="background: linear-gradient(135deg, rgba(0,210,255,0.25), rgba(157,78,221,0.25)); border-color: var(--cyber-cyan); color: #fff; font-weight: 700; padding: 5px 12px; margin-right: 6px; letter-spacing: 0.5px;">
+          BENCHMARK DASHBOARD
+        </button>
+
         <!-- Clock & State Version -->
         <div class="header-clock">
           <span id="utc-clock">00:00:00 UTC</span>
@@ -425,6 +430,153 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 6: Modal: Security Evaluation & Benchmarking Dashboard -->
+    <div id="modal-evaluation-dashboard" class="modal-overlay">
+      <div class="modal-dialog" style="max-width: 900px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="modal-title" style="letter-spacing: 0.5px;">Phase 6 — Security Evaluation & Benchmarking</span>
+            <span id="eval-gate-badge" class="status-pill mode-unsecured" style="padding: 2px 6px; font-size: 10px;">GATE: NOT RUN</span>
+          </div>
+          <button id="btn-close-eval-modal" class="modal-close-btn">&times;</button>
+        </div>
+
+        <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 16px;">
+          <!-- Action Control Bar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px; border: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-run-gate" class="hud-btn" style="padding: 6px 12px; font-weight: 700; border-color: var(--amber); color: var(--amber);">
+                RUN VERIFICATION GATE
+              </button>
+              <button id="btn-run-benchmark" class="hud-btn" style="padding: 6px 14px; font-weight: 700; background: linear-gradient(135deg, var(--cyber-cyan), var(--purple)); color: #fff; border: none;">
+                RUN FULL SECURITY BENCHMARK
+              </button>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <button id="btn-eval-export-json" class="hud-btn" style="padding: 4px 8px; font-size: 10px;">
+                Export JSON
+              </button>
+              <button id="btn-eval-export-csv" class="hud-btn" style="padding: 4px 8px; font-size: 10px;">
+                Export CSV
+              </button>
+              <button id="btn-eval-view-report" class="hud-btn" style="padding: 4px 8px; font-size: 10px; border-color: var(--emerald); color: var(--emerald);">
+                View MD Report
+              </button>
+            </div>
+          </div>
+
+          <!-- Progress Bar & Status -->
+          <div style="margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-bottom: 4px;">
+              <span id="eval-run-status">Ready for evaluation.</span>
+            </div>
+            <div style="height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden;">
+              <div id="eval-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--cyber-cyan), var(--emerald)); transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+
+          <!-- Verification Gate Checklist Panel -->
+          <div style="margin-bottom: 16px; background: rgba(0,0,0,0.25); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
+              Integration Verification Invariant Checks
+            </div>
+            <div id="eval-gate-checks-list">
+              <div style="font-size: 11px; color: var(--text-dim);">Run verification gate to validate flight state machine, vertical movement, all 6 attacks, and state invariants.</div>
+            </div>
+          </div>
+
+          <!-- Top Quantitative Metrics Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px;">
+            <div class="metric-box" style="padding: 8px 12px;">
+              <span class="metric-label">Mutation Rate</span>
+              <div class="metric-value-wrap">
+                <span id="metric-eval-mut-rate" class="metric-value text-crimson" style="font-size: 16px;">--</span>
+              </div>
+            </div>
+            <div class="metric-box" style="padding: 8px 12px;">
+              <span class="metric-label">Attack Rejection</span>
+              <div class="metric-value-wrap">
+                <span id="metric-eval-rej-rate" class="metric-value text-emerald" style="font-size: 16px;">--</span>
+              </div>
+            </div>
+            <div class="metric-box" style="padding: 8px 12px;">
+              <span class="metric-label">Legit Command Success</span>
+              <div class="metric-value-wrap">
+                <span id="metric-eval-legit-rate" class="metric-value text-cyber" style="font-size: 16px;">--</span>
+              </div>
+            </div>
+            <div class="metric-box" style="padding: 8px 12px;">
+              <span class="metric-label">Latency (p50 / p95)</span>
+              <div class="metric-value-wrap">
+                <span id="metric-eval-latency" class="metric-value" style="font-size: 13px;">--</span>
+              </div>
+            </div>
+            <div class="metric-box" style="padding: 8px 12px;">
+              <span class="metric-label">Total Experiments</span>
+              <div class="metric-value-wrap">
+                <span id="metric-eval-total-exps" class="metric-value" style="font-size: 16px;">--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Comparison Matrix Across Modes -->
+          <div style="margin-bottom: 18px;">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+              Security Operating Mode Comparison Matrix
+            </div>
+            <table class="log-table" style="font-size: 11px;">
+              <thead>
+                <tr>
+                  <th>Operating Mode</th>
+                  <th>Attack Attempts</th>
+                  <th>Mutation Rate</th>
+                  <th>Rejection Rate</th>
+                  <th>Replay Rejection</th>
+                  <th>Legit Success</th>
+                  <th>p50 Latency</th>
+                  <th>p95 Latency</th>
+                  <th>Rate Limits</th>
+                </tr>
+              </thead>
+              <tbody id="eval-matrix-table-body">
+                <tr>
+                  <td colspan="9" style="text-align: center; color: var(--text-dim);">No benchmark data recorded yet. Click 'RUN FULL SECURITY BENCHMARK'.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Individual Experiments Breakdown Table -->
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
+              Experiment Observations & Invariant Log
+            </div>
+            <table class="log-table" style="font-size: 11px;">
+              <thead>
+                <tr>
+                  <th>Mode</th>
+                  <th>Scenario</th>
+                  <th>Attempts</th>
+                  <th>Accepted</th>
+                  <th>Rej (Sec)</th>
+                  <th>Defense Triggered</th>
+                  <th>State Invariant</th>
+                  <th>p50 Latency</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="eval-experiments-table-body">
+                <tr>
+                  <td colspan="9" style="text-align: center; color: var(--text-dim);">No experiment records available.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

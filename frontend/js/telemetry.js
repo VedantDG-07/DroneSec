@@ -126,15 +126,23 @@ export class TelemetryClient {
   }
 
   scheduleReconnect() {
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
     this.reconnectAttempts++;
     const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), this.maxReconnectDelay);
     console.log(`[Telemetry] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})...`);
-    setTimeout(() => this.connect(), delay);
+    this._reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
   cleanup() {
     this.isConnected = false;
     this.isConnecting = false;
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
     this.stopHeartbeat();
     this.stopStaleChecker();
   }

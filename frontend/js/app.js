@@ -16,6 +16,7 @@ import { FlightControls } from './flight_controls.js';
 import { SecurityPanel } from './security_panel.js';
 import { AttackConsole } from './attack_console.js';
 import { EventLogConsole } from './event_log.js';
+import { EvaluationDashboard } from './evaluation.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[DroneSec GCS] Initializing Ground Control Station...');
@@ -79,7 +80,11 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   });
 
-  // 7. Initialize Telemetry WebSocket Client
+  // 7. Initialize Phase 6 Evaluation Dashboard
+  const evaluationDashboard = new EvaluationDashboard();
+  evaluationDashboard.onToast((msg, type) => showToast(msg, type));
+
+  // 8. Initialize Telemetry WebSocket Client
   const telemetryClient = new TelemetryClient();
 
   // Connection Status UI

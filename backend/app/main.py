@@ -13,12 +13,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.api.routes import router
 from backend.app.api.schemas import ErrorDetail, StandardErrorResponse
 from backend.app.config import AppConfig, config as default_config
 from backend.app.core.coordinate_service import CoordinateService
 from backend.app.core.drone_engine import DroneEngine
+from backend.app.evaluation.repository import EvaluationRepository
+from backend.app.evaluation.runner import EvaluationRunner
 from backend.app.persistence.database import DatabaseManager
 from backend.app.persistence.repositories import (
     AttackRunRepository,
@@ -78,10 +81,31 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cfg.cors_origins,
-        allow_credentials=True,
+        allow_credentials="*" not in cfg.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Enforce request payload size limit across all HTTP endpoints
+    @app.middleware("http")
+    async def limit_body_size(request: Request, call_next):
+        cl = request.headers.get("content-length")
+        if cl:
+            try:
+                if int(cl) > cfg.max_request_body_bytes:
+                    return JSONResponse(
+                        status_code=413,
+                        content={
+                            "status": "error",
+                            "error": {
+                                "code": "PAYLOAD_TOO_LARGE",
+                                "message": f"Request entity exceeds limit of {cfg.max_request_body_bytes} bytes.",
+                            },
+                        },
+                    )
+            except ValueError:
+                pass
+        return await call_next(request)
 
     # Initialize Authoritative Singletons
     coord_service = CoordinateService(
@@ -99,6 +123,7 @@ def create_app(
     cmd_repo = CommandLogRepository(db)
     sec_repo = SecurityEventRepository(db)
     attack_repo = AttackRunRepository(db)
+    eval_repo = EvaluationRepository(db)
     log_repo = LogQueryRepository(cmd_repo=cmd_repo, sec_repo=sec_repo, attack_repo=attack_repo)
 
     # Security Components
@@ -158,6 +183,18 @@ def create_app(
         bearer_token=cfg.gcs_bearer_token,
     )
 
+    eval_runner = EvaluationRunner(
+        drone_engine=engine,
+        command_service=command_service,
+        security_service=sec_service,
+        attack_service=attack_service,
+        eval_repo=eval_repo,
+        crypto_service=crypto_service,
+        log_repo=log_repo,
+        db_manager=db,
+        bearer_token=cfg.gcs_bearer_token,
+    )
+
     # Bind dependencies to app.state
     app.state.config = cfg
     app.state.drone_engine = engine
@@ -166,16 +203,19 @@ def create_app(
     app.state.cmd_repo = cmd_repo
     app.state.sec_repo = sec_repo
     app.state.attack_repo = attack_repo
+    app.state.eval_repo = eval_repo
     app.state.log_repo = log_repo
     app.state.key_manager = key_manager
     app.state.crypto_service = crypto_service
     app.state.auth_manager = auth_manager
     app.state.replay_filter = replay_filter
+    app.state.config = cfg
     app.state.rate_limiter = rate_limiter
     app.state.security_service = sec_service
     app.state.telemetry_service = telemetry_service
     app.state.command_service = command_service
     app.state.attack_service = attack_service
+    app.state.eval_runner = eval_runner
     app.state.start_time = time.time()
 
     # Register Exception Handlers for Standard Error Envelope
@@ -203,6 +243,21 @@ def create_app(
         )
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content=error_resp.model_dump(),
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        error_resp = StandardErrorResponse(
+            error=ErrorDetail(
+                code="HTTP_ERROR" if exc.status_code != 404 else "NOT_FOUND",
+                message=str(exc.detail),
+            )
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
             content=error_resp.model_dump(),
         )
 

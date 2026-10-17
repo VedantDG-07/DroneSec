@@ -15,6 +15,7 @@ export class FlightControls {
     this.currentFlightState = 'DISARMED';
     this.stepDistance = 2.0; // Default 2.0m step
     this.isSubmitting = false;
+    this.sequenceNumber = 1;
 
     this.onCommandResultCallbacks = [];
     this.onToastCallbacks = [];
@@ -134,13 +135,35 @@ export class FlightControls {
     if (this.isSubmitting) return;
 
     this.isSubmitting = true;
-    const payload = {
+    let payload = {
       command: command,
       parameters: parameters,
-      client_id: 'GCS_OPERATOR_CONSOLE',
+      client_id: 'GCS-PRIMARY',
     };
 
     try {
+      // Pack command for active security mode if needed
+      try {
+        const packResp = await fetch(`${this.apiBase}/api/drone/command/pack`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            command: command,
+            parameters: parameters,
+            sender_id: 'GCS-PRIMARY',
+            sequence_number: this.sequenceNumber++,
+          }),
+        });
+        if (packResp.ok) {
+          const packData = await packResp.json();
+          if (packData.data && packData.data.payload) {
+            payload = packData.data.payload;
+          }
+        }
+      } catch (packErr) {
+        // Fall back to default payload
+      }
+
       const response = await fetch(`${this.apiBase}/api/drone/command`, {
         method: 'POST',
         headers: {

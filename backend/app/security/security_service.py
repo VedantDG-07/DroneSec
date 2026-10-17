@@ -282,22 +282,26 @@ class SecurityService:
             raise SecurityPipelineError(status_code=403, error_code=e.code, message=e.message) from e
 
         # --- Stage 5: Cryptographic Verification by Mode ---
-        if self._mode == SecurityMode.INTEGRITY_ONLY:
-            inner_cmd, inner_params = await self._verify_integrity_mode(
-                raw_payload=raw_payload,
-                header=header,
-                source_ip=source_ip,
-                client_id=authenticated_client_id,
-            )
-        elif self._mode == SecurityMode.ENCRYPTED_AUTHENTICATED:
-            inner_cmd, inner_params = await self._verify_encrypted_mode(
-                raw_payload=raw_payload,
-                header=header,
-                source_ip=source_ip,
-                client_id=authenticated_client_id,
-            )
-        else:
-            raise SecurityPipelineError(status_code=500, error_code="SERVER_ERROR", message="Unknown security mode.")
+        try:
+            if self._mode == SecurityMode.INTEGRITY_ONLY:
+                inner_cmd, inner_params = await self._verify_integrity_mode(
+                    raw_payload=raw_payload,
+                    header=header,
+                    source_ip=source_ip,
+                    client_id=authenticated_client_id,
+                )
+            elif self._mode == SecurityMode.ENCRYPTED_AUTHENTICATED:
+                inner_cmd, inner_params = await self._verify_encrypted_mode(
+                    raw_payload=raw_payload,
+                    header=header,
+                    source_ip=source_ip,
+                    client_id=authenticated_client_id,
+                )
+            else:
+                raise SecurityPipelineError(status_code=500, error_code="SERVER_ERROR", message="Unknown security mode.")
+        except Exception:
+            self.replay_filter.abort_ticket(replay_ticket)
+            raise
 
         # --- Stage 6: Anti-Replay Stage 2 (Commit Window Advance) ---
         # Window advances ONLY after cryptographic authentication and integrity verify 100%!

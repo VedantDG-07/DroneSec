@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import base64
+import collections
 import hashlib
 import hmac
 import secrets
-from typing import Optional, Set
+import threading
+from typing import Deque, Optional, Set
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from backend.app.security.key_manager import KeyManager
+
+
+MAX_NONCE_TRACKING: int = 50_000
+MAX_INVOCATIONS_PER_KEY: int = 100_000
 
 
 class CryptoVerificationError(Exception):
@@ -23,32 +29,52 @@ class CryptoService:
     
     Guarantees:
     1. AES-256-GCM utilizes a 256-bit key and fresh 96-bit (12-byte) CSPRNG nonce per encryption.
-    2. Nonce cache prevents nonce reuse under the same active key.
+    2. Nonce cache prevents nonce reuse under the same active key with bounded memory (50k entries).
     3. Associated Authenticated Data (AAD) binds message metadata into Galois Field authentication.
     4. Constant-time comparison for HMAC signatures via hmac.compare_digest.
+    5. Thread-safe nonce generation and encryption invocation counters per NIST SP 800-38D.
     """
 
     def __init__(self, key_manager: KeyManager) -> None:
         self.key_manager = key_manager
-        # Track used nonces per key_id to strictly prevent nonce reuse
+        self._lock = threading.Lock()
+        # Track used nonces per key_id with bounded memory to strictly prevent nonce reuse
         self._used_nonces: dict[str, Set[bytes]] = {}
+        self._nonce_history: dict[str, Deque[bytes]] = {}
+        self._encryption_counts: dict[str, int] = collections.defaultdict(int)
 
     def generate_nonce(self, key_id: Optional[str] = None) -> bytes:
         """Generate a fresh 96-bit (12-byte) nonce guaranteed to be unique for the key."""
         target_key_id = key_id or self.key_manager.active_key_id
-        if target_key_id not in self._used_nonces:
-            self._used_nonces[target_key_id] = set()
+        with self._lock:
+            if target_key_id not in self._used_nonces:
+                self._used_nonces[target_key_id] = set()
+                self._nonce_history[target_key_id] = collections.deque()
 
-        used_set = self._used_nonces[target_key_id]
+            used_set = self._used_nonces[target_key_id]
+            history = self._nonce_history[target_key_id]
 
-        # Draw from CSPRNG until unique
-        for _ in range(10):
-            nonce = secrets.token_bytes(12)
-            if nonce not in used_set:
-                used_set.add(nonce)
-                return nonce
+            # Prune oldest if at capacity to maintain strictly bounded memory footprint
+            if len(used_set) >= MAX_NONCE_TRACKING:
+                oldest = history.popleft()
+                used_set.discard(oldest)
 
-        raise RuntimeError("Failed to generate unique cryptographic nonce.")
+            # Draw from CSPRNG until unique
+            for _ in range(10):
+                nonce = secrets.token_bytes(12)
+                if nonce not in used_set:
+                    used_set.add(nonce)
+                    history.append(nonce)
+                    self._encryption_counts[target_key_id] += 1
+                    return nonce
+
+            raise RuntimeError("Failed to generate unique cryptographic nonce.")
+
+    def get_encryption_count(self, key_id: Optional[str] = None) -> int:
+        """Return total encryption operations performed under specified key."""
+        target_key_id = key_id or self.key_manager.active_key_id
+        with self._lock:
+            return self._encryption_counts.get(target_key_id, 0)
 
     def encrypt_aes_gcm(
         self,

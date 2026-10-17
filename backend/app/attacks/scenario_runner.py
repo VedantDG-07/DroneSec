@@ -304,6 +304,7 @@ class AttackScenarioRunner:
                 security_mode=security_mode,
                 flood_count=flood_count,
                 factory=factory,
+                bearer_token=bearer_token,
             )
         else:
             raise ValueError(f"Unsupported scenario: {scenario_enum}")
@@ -746,6 +747,7 @@ class AttackScenarioRunner:
         security_mode: str,
         flood_count: int = 40,
         factory: Any = None,
+        bearer_token: str = "valid_secret_token",
     ) -> ScenarioResult:
         """ATK-06: Bounded burst to exercise token-bucket rate limiting."""
         flood_count = min(flood_count, MAX_FLOOD_REQUESTS)
@@ -761,6 +763,8 @@ class AttackScenarioRunner:
             {"command": "ARM", "client_id": client_id} for _ in range(flood_count)
         ]
 
+        headers = {"Authorization": f"Bearer {bearer_token}"} if security_mode != "UNSECURED" else None
+
         for i, payload in enumerate(payloads):
             if cancel.is_set():
                 break
@@ -768,7 +772,7 @@ class AttackScenarioRunner:
             p_before = self._pos()
 
             t0 = time.perf_counter()
-            res = await self._send_post("/api/drone/command", json=payload)
+            res = await self._send_post("/api/drone/command", json=payload, headers=headers)
             lat = (time.perf_counter() - t0) * 1000
 
             sv_after = self._engine.state_version
@@ -842,19 +846,22 @@ class AttackScenarioRunner:
                         self._delta_norm(s0["position"], s1["position"]) > 0.0
 
         defense_triggered = None
-        for r in records:
-            if r.response_code and r.response_code in _SECURITY_REJECTION_CODES:
-                defense_triggered = r.response_code
-                break
-            if r.http_status == 429:
-                defense_triggered = "RATE_LIMIT_EXCEEDED"
-                break
-            if r.http_status == 401:
-                defense_triggered = r.response_code or "AUTH_TOKEN_MISSING"
-                break
-            if r.http_status == 403:
-                defense_triggered = r.response_code or "CRYPTO_DECRYPTION_FAILED"
-                break
+        if rate_limited > 0:
+            defense_triggered = "RATE_LIMIT_EXCEEDED"
+        else:
+            for r in records:
+                if r.response_code and r.response_code in _SECURITY_REJECTION_CODES:
+                    defense_triggered = r.response_code
+                    break
+                if r.http_status == 429:
+                    defense_triggered = "RATE_LIMIT_EXCEEDED"
+                    break
+                if r.http_status == 401:
+                    defense_triggered = r.response_code or "AUTH_TOKEN_MISSING"
+                    break
+                if r.http_status == 403:
+                    defense_triggered = r.response_code or "CRYPTO_DECRYPTION_FAILED"
+                    break
 
         # Determine attack_status
         if rejected_sec > 0 or rate_limited > 0:

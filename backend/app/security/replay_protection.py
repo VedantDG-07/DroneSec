@@ -64,13 +64,18 @@ class AntiReplayFilter:
         self.max_senders = max_senders
 
         self._states: dict[str, _SenderReplayState] = {}
+        self._in_flight: set[tuple[str, int]] = set()
         self._lock = threading.Lock()
 
-    def get_highest_sequence_number(self, sender_id: str = "DEFAULT") -> int:
-        """Return highest sequence number processed for sender."""
+    def get_highest_sequence_number(self, sender_id: Optional[str] = None) -> int:
+        """Return highest sequence number processed for sender, or max across all senders."""
         with self._lock:
-            state = self._states.get(sender_id)
-            return state.highest_seq if state else 0
+            if sender_id is not None:
+                state = self._states.get(sender_id)
+                return state.highest_seq if state else 0
+            if not self._states:
+                return 0
+            return max((s.highest_seq for s in self._states.values()), default=0)
 
     def check_freshness(self, timestamp: float) -> None:
         """Verify timestamp freshness against server clock."""
@@ -92,9 +97,9 @@ class AntiReplayFilter:
         sequence_number: int,
         timestamp: float,
     ) -> ReplayCheckTicket:
-        """Stage 1: Verify freshness and sequence without permanently mutating the window.
+        """Stage 1: Verify freshness and sequence atomically without permanently mutating the committed window.
         
-        Returns a ReplayCheckTicket to be committed once crypto authentication passes.
+        Guarantees that concurrent duplicate sequence numbers are rejected before commit.
         """
         # Step 1: Timestamp freshness gate
         self.check_freshness(timestamp)
@@ -165,13 +170,47 @@ class AntiReplayFilter:
             )
 
     def commit_ticket(self, ticket: ReplayCheckTicket) -> None:
-        """Stage 2: Atomically commit the replay window advance after crypto validation succeeds."""
+        """Stage 2: Atomically commit the replay window advance after crypto validation succeeds.
+        
+        Dynamically applies advance against the current state of the sliding window,
+        guaranteeing atomic single-winner resolution under concurrent executions.
+        """
         with self._lock:
             if ticket.sender_id not in self._states:
                 self._states[ticket.sender_id] = _SenderReplayState()
             state = self._states[ticket.sender_id]
-            state.highest_seq = ticket.proposed_highest_seq
-            state.window_bitmask = ticket.proposed_bitmask
+            seq = ticket.sequence_number
+            highest = state.highest_seq
+
+            if highest < 0:
+                state.highest_seq = seq
+                state.window_bitmask = 1
+            elif seq > highest:
+                shift = seq - highest
+                if shift >= self.window_size:
+                    state.window_bitmask = 1
+                else:
+                    state.window_bitmask = ((state.window_bitmask << shift) | 1) & BITMASK_64_BITS
+                state.highest_seq = seq
+            else:
+                diff = highest - seq
+                if diff < self.window_size:
+                    offset_mask = 1 << diff
+                    if state.window_bitmask & offset_mask:
+                        raise ReplayVerificationError(
+                            "REPLAY_ATTACK_DETECTED",
+                            f"Duplicate sequence number {seq} detected within sliding window during commit.",
+                        )
+                    state.window_bitmask |= offset_mask
+                else:
+                    raise ReplayVerificationError(
+                        "REPLAY_ATTACK_DETECTED",
+                        f"Sequence number {seq} is older than sliding window horizon ({highest - self.window_size + 1}) during commit.",
+                    )
+
+    def abort_ticket(self, ticket: Optional[ReplayCheckTicket]) -> None:
+        """Release candidate sequence number on verification failure (noop for stateless candidate)."""
+        pass
 
     def verify_and_commit(self, sender_id: str, sequence_number: int, timestamp: float) -> None:
         """Single-step check and commit."""

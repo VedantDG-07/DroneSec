@@ -61,6 +61,49 @@ CREATE INDEX IF NOT EXISTS idx_attack_runs_timestamp ON attack_runs(timestamp DE
 CREATE INDEX IF NOT EXISTS idx_attack_runs_scenario ON attack_runs(scenario_type);
 """
 
+CREATE_EVALUATION_RUNS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS evaluation_runs (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL UNIQUE,
+    timestamp REAL NOT NULL,
+    status TEXT NOT NULL,
+    total_experiments INTEGER NOT NULL,
+    completed_experiments INTEGER NOT NULL,
+    metrics_summary TEXT,
+    markdown_report TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_evaluation_runs_timestamp ON evaluation_runs(timestamp DESC);
+"""
+
+CREATE_EVALUATION_EXPERIMENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS evaluation_experiments (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    experiment_id TEXT NOT NULL,
+    timestamp REAL NOT NULL,
+    security_mode TEXT NOT NULL,
+    scenario_type TEXT NOT NULL,
+    test_config TEXT,
+    initial_state TEXT,
+    final_state TEXT,
+    attempts_count INTEGER NOT NULL,
+    accepted_count INTEGER NOT NULL,
+    rejected_security_count INTEGER NOT NULL,
+    rejected_engine_count INTEGER NOT NULL,
+    rate_limited_count INTEGER NOT NULL,
+    actual_defense_reason TEXT,
+    state_mutated INTEGER NOT NULL,
+    p50_latency_ms REAL,
+    p95_latency_ms REAL,
+    latencies TEXT,
+    audit_event_ids TEXT,
+    result_status TEXT NOT NULL,
+    result_reason TEXT,
+    FOREIGN KEY(run_id) REFERENCES evaluation_runs(run_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_evaluation_experiments_run_id ON evaluation_experiments(run_id);
+"""
+
 
 class DatabaseManager:
     """Manages SQLite connection pooling, WAL mode initialization, and thread-safe transactions."""
@@ -105,6 +148,8 @@ class DatabaseManager:
                 conn.executescript(CREATE_COMMAND_LOGS_TABLE_SQL)
                 conn.executescript(CREATE_SECURITY_EVENTS_TABLE_SQL)
                 conn.executescript(CREATE_ATTACK_RUNS_TABLE_SQL)
+                conn.executescript(CREATE_EVALUATION_RUNS_TABLE_SQL)
+                conn.executescript(CREATE_EVALUATION_EXPERIMENTS_TABLE_SQL)
         finally:
             conn.close()
 

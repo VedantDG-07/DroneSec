@@ -41,9 +41,24 @@ class AppConfig:
         default_factory=lambda: float(os.getenv("SIM_ORIGIN_ALTITUDE_MSL", "15.0"))
     )
 
-    # CORS and Host
+    # Environment & Deployment
+    app_env: str = field(
+        default_factory=lambda: os.getenv("APP_ENV", os.getenv("SIM_ENV", "development")).lower()
+    )
+    require_admin_auth: bool = field(
+        default_factory=lambda: os.getenv("SIM_REQUIRE_ADMIN_AUTH", "false").lower() in ("true", "1", "yes")
+    )
+    max_request_body_bytes: int = field(
+        default_factory=lambda: int(os.getenv("SIM_MAX_REQUEST_BYTES", str(64 * 1024)))
+    )
+
+    # CORS and Host (Least Privilege Defaults)
     cors_origins: list[str] = field(
-        default_factory=lambda: os.getenv("SIM_CORS_ORIGINS", "*").split(",")
+        default_factory=lambda: (
+            os.getenv("SIM_CORS_ORIGINS").split(",")
+            if os.getenv("SIM_CORS_ORIGINS")
+            else ["http://127.0.0.1:8000", "http://localhost:8000", "http://127.0.0.1:3000", "http://localhost:3000"]
+        )
     )
     app_host: str = field(default_factory=lambda: os.getenv("SIM_HOST", "127.0.0.1"))
     app_port: int = field(default_factory=lambda: int(os.getenv("SIM_PORT", "8000")))
@@ -82,6 +97,26 @@ class AppConfig:
     rate_limit_capacity: int = field(
         default_factory=lambda: int(os.getenv("SIM_RATE_LIMIT_CAPACITY", "20"))
     )
+
+    def __post_init__(self) -> None:
+        """Enforce strict security validation for production environments."""
+        if self.app_env in ("production", "prod"):
+            # Prevent silent use of demonstration Bearer credentials in production
+            if self.gcs_bearer_token == "gcs-sim-token-secret-2026":
+                raise ValueError(
+                    "Production environment cannot use default demonstration Bearer token ('gcs-sim-token-secret-2026'). Set SIM_GCS_BEARER_TOKEN."
+                )
+            # Prevent missing keys in secured modes under production
+            if self.security_mode != "UNSECURED":
+                if self.aes_256_key is None or self.hmac_sha256_key is None:
+                    raise ValueError(
+                        f"Production environment in {self.security_mode} mode requires explicit SIM_AES_256_KEY and SIM_HMAC_SHA256_KEY."
+                    )
+            # Disallow wildcard CORS in production
+            if "*" in self.cors_origins:
+                raise ValueError(
+                    "Production environment cannot use wildcard ('*') CORS origins. Set explicit origins in SIM_CORS_ORIGINS."
+                )
 
 
 # Default global instance

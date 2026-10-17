@@ -159,6 +159,12 @@ class AttackService:
         self._custom_client = client
         self._runner = AttackScenarioRunner(http_client=client, drone_engine=self.engine)
 
+    def cancel_active_attack(self) -> bool:
+        """Signal the currently executing attack scenario to terminate immediately."""
+        if self._runner is not None:
+            return self._runner.cancel()
+        return False
+
     async def execute_attack(
         self,
         attack_type_str: str,
@@ -170,13 +176,17 @@ class AttackService:
             runner = self.get_runner()
             current_mode = self.security_service.current_mode.value
 
-            result: ScenarioResult = await runner.run_scenario(
-                scenario_type=scenario_enum,
-                security_mode=current_mode,
-                parameters=parameters,
-                factory=self.factory,
-                bearer_token=self.bearer_token,
-            )
+            try:
+                result: ScenarioResult = await runner.run_scenario(
+                    scenario_type=scenario_enum,
+                    security_mode=current_mode,
+                    parameters=parameters,
+                    factory=self.factory,
+                    bearer_token=self.bearer_token,
+                )
+            except Exception:
+                runner.cancel()
+                raise
 
             # Persist attack run record in SQLite
             await self.attack_repo.log_attack_run_async(

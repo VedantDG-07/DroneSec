@@ -49,6 +49,7 @@ def test_frontend_root_serves_html(gcs_client: TestClient):
     assert "Authoritative Flight Controls" in content
     assert "btn-launch-attack" in content
     assert "modal-attack-history" in content
+    assert "modal-evaluation-dashboard" in content
     assert "/js/app.js" in content
 
 
@@ -63,6 +64,7 @@ def test_frontend_static_assets_served(gcs_client: TestClient):
         ("/js/security_panel.js", "application/javascript"),
         ("/js/attack_console.js", "application/javascript"),
         ("/js/event_log.js", "application/javascript"),
+        ("/js/evaluation.js", "application/javascript"),
         ("/js/vendor/three.module.js", "application/javascript"),
         ("/js/vendor/OrbitControls.js", "application/javascript"),
     ]

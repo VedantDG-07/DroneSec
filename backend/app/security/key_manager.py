@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import os
 import secrets
+import threading
 from typing import Optional
 
 
@@ -15,6 +16,7 @@ class KeyManager:
     1. Independent 256-bit keys for AES-256-GCM and HMAC-SHA-256.
     2. Generated using cryptographically secure PRNG (secrets.token_bytes).
     3. Keys are never exposed in string representations or API outputs.
+    4. Thread-safe key storage, lookup, and atomic key rotation.
     """
 
     def __init__(
@@ -23,6 +25,7 @@ class KeyManager:
         aes_key: Optional[bytes] = None,
         hmac_key: Optional[bytes] = None,
     ) -> None:
+        self._lock = threading.Lock()
         self._key_counter: int = 1
         self._active_key_id: str = initial_key_id
         self._aes_keys: dict[str, bytes] = {}
@@ -58,35 +61,40 @@ class KeyManager:
     @property
     def active_key_id(self) -> str:
         """Return identifier of the currently active key version."""
-        return self._active_key_id
+        with self._lock:
+            return self._active_key_id
 
     def get_aes_key(self, key_id: Optional[str] = None) -> bytes:
         """Retrieve AES-256 key for specified version (or active version)."""
-        target = key_id or self._active_key_id
-        if target not in self._aes_keys:
-            raise KeyError(f"AES key version '{target}' not found.")
-        return self._aes_keys[target]
+        with self._lock:
+            target = key_id or self._active_key_id
+            if target not in self._aes_keys:
+                raise KeyError(f"AES key version '{target}' not found.")
+            return self._aes_keys[target]
 
     def get_hmac_key(self, key_id: Optional[str] = None) -> bytes:
         """Retrieve HMAC-SHA-256 key for specified version (or active version)."""
-        target = key_id or self._active_key_id
-        if target not in self._hmac_keys:
-            raise KeyError(f"HMAC key version '{target}' not found.")
-        return self._hmac_keys[target]
+        with self._lock:
+            target = key_id or self._active_key_id
+            if target not in self._hmac_keys:
+                raise KeyError(f"HMAC key version '{target}' not found.")
+            return self._hmac_keys[target]
 
     def rotate_keys(self) -> str:
-        """Generate a new key generation version and advance active key version."""
-        self._key_counter += 1
-        new_key_id = f"sim_key_v{self._key_counter}"
+        """Generate a new key generation version and advance active key version atomically."""
+        with self._lock:
+            self._key_counter += 1
+            new_key_id = f"sim_key_v{self._key_counter}"
 
-        new_aes = secrets.token_bytes(32)
-        new_hmac = secrets.token_bytes(32)
+            new_aes = secrets.token_bytes(32)
+            new_hmac = secrets.token_bytes(32)
 
-        self._aes_keys[new_key_id] = new_aes
-        self._hmac_keys[new_key_id] = new_hmac
-        self._active_key_id = new_key_id
+            self._aes_keys[new_key_id] = new_aes
+            self._hmac_keys[new_key_id] = new_hmac
+            self._active_key_id = new_key_id
 
-        return new_key_id
+            return new_key_id
 
     def __repr__(self) -> str:
-        return f"<KeyManager active_key_id={self._active_key_id} key_count={len(self._aes_keys)}>"
+        with self._lock:
+            return f"<KeyManager active_key_id={self._active_key_id} key_count={len(self._aes_keys)}>"

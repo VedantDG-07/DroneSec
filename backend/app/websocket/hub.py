@@ -115,6 +115,9 @@ class WebSocketHub:
         try:
             while True:
                 data = await websocket.receive_text()
+                if len(data) > 4096:
+                    logger.warning("Dropping oversized incoming WebSocket frame.")
+                    continue
                 try:
                     msg = json.loads(data)
                 except Exception:

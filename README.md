@@ -3,7 +3,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Cryptography](https://img.shields.io/badge/Cryptography-AES--256--GCM-green.svg)](https://cryptography.io)
-[![Tests](https://img.shields.io/badge/tests-173%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-234%20passed-brightgreen.svg)]()
 
 **DroneSec** is an enterprise-grade, software-in-the-loop (SITL) simulation and security benchmarking platform for Unmanned Aerial Vehicle (UAV) to Ground Control Station (GCS) telemetry and command communications. 
 
@@ -245,7 +245,23 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# (Optional) Configure environment variables
+# Copy template and customize secret keys and origins as needed
+cp .env.example .env
 ```
+
+---
+
+## Configuration & Environments
+
+DroneSec supports local development and hardened production modes configured via environment variables or a `.env` file (see [`.env.example`](file:///c:/Users/User/Documents/drone/.env.example)):
+
+- `SIM_APP_ENV`: Operating environment (`development` or `production`). When set to `production`, safe configuration is strictly enforced (rejects default demo tokens, rejects wildcard CORS, and requires explicit cryptographic keys).
+- `SIM_GCS_BEARER_TOKEN`: Authorization bearer token for privileged GCS operations.
+- `SIM_CORS_ORIGINS`: Comma-separated list of allowed CORS origins (default: loopback addresses `127.0.0.1:8000,localhost:8000`).
+- `SIM_MAX_REQUEST_BODY_BYTES`: Maximum allowed HTTP request body size (default: 65,536 bytes / 64 KiB).
+- `SIM_AES_256_KEY` & `SIM_HMAC_SHA256_KEY`: Cryptographic 256-bit hexadecimal keys for authenticated AEAD and HMAC pipelines.
 
 ---
 
@@ -269,15 +285,18 @@ Once launched:
 
 ## Running the Automated Test Suite
 
-DroneSec includes a test suite with **173 automated tests** covering unit physics, cryptographic invariants, concurrency, WebSocket streaming, cyberattack scenarios, and GCS frontend serving.
+DroneSec includes a test suite with **234 automated tests** covering unit physics, cryptographic invariants, concurrency, WebSocket streaming, cyberattack scenarios, and Phase 7 security hardening:
 
 ### Run All Tests
 ```bash
-pytest
+pytest -v
 ```
 
 ### Run Specific Modules
 ```bash
+# Phase 7 Security Hardening, Concurrency & Reliability
+pytest backend/tests/test_phase7_hardening_reliability.py -v
+
 # Cyberattack simulation scenarios (ATK-01 to ATK-06)
 pytest backend/tests/test_attack_scenarios.py -v
 
@@ -292,6 +311,16 @@ pytest backend/tests/test_flight_fsm.py backend/tests/test_drone_engine.py backe
 
 # REST API & WebSocket streaming
 pytest backend/tests/test_api.py backend/tests/test_websocket.py backend/tests/test_persistence.py -v
+```
+
+---
+
+## Local Benchmarking
+
+Run the reproducible local benchmarking harness to measure command latency across security modes, telemetry loop interval regularity, concurrent command throughput, and bounded cyberattack execution:
+
+```bash
+python -m backend.scripts.run_benchmarks
 ```
 
 ---

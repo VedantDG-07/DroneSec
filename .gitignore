@@ -29,3 +29,17 @@ data/*.db-shm
 
 # Logs
 *.log
+
+# Local environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Generated benchmark exports & local artifacts
+data/*.csv
+data/*.json
+benchmark*.csv
+benchmark*.json
+test_*.db*
