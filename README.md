@@ -283,6 +283,31 @@ Once launched:
 
 ---
 
+## Wireshark Practical (Local Traffic Lab)
+
+A small loopback-only client exercises DroneSec's existing command API and security pipeline so you can observe the real HTTP/TCP traffic in Wireshark. It covers plaintext visibility, replay comparison, and tampering under the existing security modes without creating a separate crypto implementation.
+
+See **[docs/wireshark-practical.md](docs/wireshark-practical.md)** for the full walkthrough.
+
+With the server running at `127.0.0.1:8000`, select the Npcap loopback interface in Wireshark and use:
+
+```text
+tcp.port == 8000
+```
+
+Example commands from the repository root:
+
+```powershell
+python -m backend.scripts.wireshark_lab --mode UNSECURED --action send
+python -m backend.scripts.wireshark_lab --mode UNSECURED --action replay
+python -m backend.scripts.wireshark_lab --mode ENCRYPTED_AUTHENTICATED --action replay
+python -m backend.scripts.wireshark_lab --mode ENCRYPTED_AUTHENTICATED --action tamper
+```
+
+The runner refuses non-loopback URLs. Wireshark captures traffic; DroneSec's security pipeline performs authentication, integrity verification, and replay rejection. This practical uses HTTP and should not be described as full transport-layer TLS encryption.
+
+---
+
 ## Running the Automated Test Suite
 
 DroneSec includes a test suite with **234 automated tests** covering unit physics, cryptographic invariants, concurrency, WebSocket streaming, cyberattack scenarios, and Phase 7 security hardening:
