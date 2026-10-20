@@ -62,8 +62,9 @@ def request_json(
     *,
     payload: dict | None = None,
     auth: bool = True,
+    token: str,
 ) -> httpx.Response:
-    headers = {"Authorization": f"Bearer {client.headers['X-Demo-Token']}"} if auth else {}
+    headers = {"Authorization": f"Bearer {token}"} if auth else {}
     return client.request(method, path, json=payload, headers=headers)
 
 
@@ -71,6 +72,8 @@ def build_command_payload(
     client: httpx.Client,
     mode: str,
     sequence: int,
+    *,
+    token: str,
 ) -> dict:
     response = request_json(
         client,
@@ -82,6 +85,7 @@ def build_command_payload(
             "sender_id": "GCS-PRIMARY",
             "sequence_number": sequence,
         },
+        token=token,
     )
     show_response("Pack command", response)
     response.raise_for_status()
@@ -111,11 +115,9 @@ def main() -> int:
     args = parse_args()
     ensure_loopback(args.base_url)
     base_url = args.base_url.rstrip("/")
-    headers = {"X-Demo-Token": args.token}
-
     try:
-        with httpx.Client(base_url=base_url, headers=headers, timeout=5.0) as client:
-            health = request_json(client, "GET", "/health", auth=False)
+        with httpx.Client(base_url=base_url, timeout=5.0) as client:
+            health = request_json(client, "GET", "/health", auth=False, token=args.token)
             show_response("Local DroneSec health", health)
             health.raise_for_status()
 
@@ -124,30 +126,31 @@ def main() -> int:
                 "POST",
                 "/api/security/mode",
                 payload={"mode": args.mode, "reason": "Wireshark practical lab"},
+                token=args.token,
             )
             show_response("Set security mode", mode_response)
             mode_response.raise_for_status()
 
             # A fresh sequence per invocation; replay reuses the exact same envelope.
             sequence = int(time.time())
-            payload = build_command_payload(client, args.mode, sequence)
+            payload = build_command_payload(client, args.mode, sequence, token=args.token)
 
             if args.action == "tamper":
                 submitted = tamper_payload(payload, args.mode)
                 print("\nTampering experiment: changed MOVE_FORWARD to MOVE_BACKWARD "
                       "in the request, without recomputing any authenticator.")
                 response = request_json(
-                    client, "POST", "/api/drone/command", payload=submitted
+                    client, "POST", "/api/drone/command", payload=submitted, token=args.token
                 )
                 show_response("Tampered command", response)
                 return 0
 
-            first = request_json(client, "POST", "/api/drone/command", payload=payload)
+            first = request_json(client, "POST", "/api/drone/command", payload=payload, token=args.token)
             show_response("Command request", first)
 
             if args.action == "replay":
                 print("\nReplay experiment: sending the exact same request envelope again.")
-                replay = request_json(client, "POST", "/api/drone/command", payload=payload)
+                replay = request_json(client, "POST", "/api/drone/command", payload=payload, token=args.token)
                 show_response("Replayed command", replay)
 
             return 0
