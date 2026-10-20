@@ -70,7 +70,6 @@ def request_json(
 
 def build_command_payload(
     client: httpx.Client,
-    mode: str,
     sequence: int,
     *,
     token: str,
@@ -133,7 +132,7 @@ def main() -> int:
 
             # A fresh sequence per invocation; replay reuses the exact same envelope.
             sequence = int(time.time())
-            payload = build_command_payload(client, args.mode, sequence, token=args.token)
+            payload = build_command_payload(client, sequence, token=args.token)
 
             if args.action == "tamper":
                 submitted = tamper_payload(payload, args.mode)
