@@ -4,10 +4,12 @@
  * Coordinates:
  * - 3D Simulation World (Three.js)
  * - Telemetry WebSocket Client (/ws/telemetry)
- * - Flight Controls (REST commands)
+ * - Flight Controls (Horizontal REST commands)
  * - Security Panel (Mode switching)
+ * - Communication Lab (C2 pipeline & Wireshark practicals)
  * - Cyberattack Console (ATK-01 to ATK-06)
  * - Event & Audit Log Console
+ * - Top Tab Navigation (Simulation, Communication Lab, Attack Lab, Audit Logs)
  */
 
 import { SimulationWorld } from './simulation.js';
@@ -17,6 +19,7 @@ import { SecurityPanel } from './security_panel.js';
 import { AttackConsole } from './attack_console.js';
 import { EventLogConsole } from './event_log.js';
 import { EvaluationDashboard } from './evaluation.js';
+import { CommunicationLab } from './communication_lab.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[DroneSec GCS] Initializing Ground Control Station...');
@@ -48,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Initialize Event Log Console
   const eventLog = new EventLogConsole();
 
-  // 4. Initialize Flight Controls
+  // 4. Initialize Flight Controls (Horizontal Toolbar)
   const flightControls = new FlightControls();
   flightControls.onToast((msg, type) => showToast(msg, type));
   flightControls.onCommandResult((res) => {
@@ -64,9 +67,30 @@ document.addEventListener('DOMContentLoaded', () => {
   securityPanel.onToast((msg, type) => showToast(msg, type));
   securityPanel.onModeChange((newMode) => {
     eventLog.appendLog('SECURITY', 'INFO', `Security operating mode switched to [${newMode}]`);
+    if (commLab) commLab.fetchSecurityStatus();
+  });
+  securityPanel.onStatus((statusData) => {
+    const highest = statusData.replay_protection?.highest_sequence_number;
+    if (typeof highest === 'number') {
+      flightControls.syncSequenceNumber(highest);
+      commLab.syncSequenceNumber?.(highest);
+    }
   });
 
-  // 6. Initialize Attack Console
+  // 6. Initialize Communication Lab
+  const commLab = new CommunicationLab();
+  commLab.onToast((msg, type) => showToast(msg, type));
+  commLab.onLog((cat, sev, msg, details) => eventLog.appendLog(cat, sev, msg, details));
+  commLab.onStatusChange((components, mode) => {
+    securityPanel.fetchSecurityStatus();
+    const atkModeInd = document.getElementById('attack-mode-indicator');
+    if (atkModeInd) {
+      atkModeInd.textContent = `MODE: ${mode}`;
+      atkModeInd.className = `status-pill mode-pill ${mode.toLowerCase().replace('_', '-')}`;
+    }
+  });
+
+  // 7. Initialize Attack Console
   const attackConsole = new AttackConsole();
   attackConsole.onToast((msg, type) => showToast(msg, type));
   attackConsole.onAttackComplete((result) => {
@@ -80,11 +104,14 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   });
 
-  // 7. Initialize Phase 6 Evaluation Dashboard
+  // 8. Initialize Phase 6 Evaluation Dashboard
   const evaluationDashboard = new EvaluationDashboard();
   evaluationDashboard.onToast((msg, type) => showToast(msg, type));
 
-  // 8. Initialize Telemetry WebSocket Client
+  // 9. Top Navigation Tabs Manager
+  setupTabNavigation(world, commLab, eventLog);
+
+  // 10. Initialize Telemetry WebSocket Client
   const telemetryClient = new TelemetryClient();
 
   // Connection Status UI
@@ -133,15 +160,57 @@ document.addEventListener('DOMContentLoaded', () => {
   // Connect to WebSocket stream
   telemetryClient.connect();
 
-  // 8. Fetch Baseline State on Initial Load
+  // 11. Fetch Baseline State on Initial Load
   fetchInitialState(world, flightControls, updateTelemetryDisplay);
 
-  // 9. Camera HUD Controls
+  // 12. Camera HUD Controls
   setupCameraButtons(world);
 
-  // 10. Start Header Clock
+  // 13. Start Header Clock
   startClock();
 });
+
+/**
+ * Handle Tab Navigation between primary views.
+ */
+function setupTabNavigation(world, commLab, eventLog) {
+  const tabs = document.querySelectorAll('.nav-tab-btn');
+  const views = document.querySelectorAll('.gcs-view');
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const targetViewId = tab.dataset.view;
+      if (!targetViewId) return;
+
+      // Update active tab button
+      tabs.forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      // Update active view section
+      views.forEach((v) => {
+        v.classList.remove('active');
+        if (v.id === `view-${targetViewId}`) {
+          v.classList.add('active');
+        }
+      });
+
+      // Special actions on tab switch
+      if (targetViewId === 'simulation') {
+        if (world && world.onWindowResize) {
+          setTimeout(() => world.onWindowResize(), 50);
+        }
+      } else if (targetViewId === 'communication') {
+        if (commLab) {
+          commLab.fetchSecurityStatus();
+        }
+      } else if (targetViewId === 'logs') {
+        if (eventLog) {
+          eventLog.fetchRecentLogs();
+        }
+      }
+    });
+  });
+}
 
 /**
  * Fetch authoritative baseline snapshot on initial page load.

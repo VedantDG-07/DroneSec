@@ -88,6 +88,21 @@ export class AttackConsole {
 
     // Launch Attack Button
     const btnLaunch = document.getElementById('btn-launch-attack');
+    const btnCancel = document.getElementById('btn-cancel-attack');
+    if (btnCancel) {
+      btnCancel.addEventListener('click', async () => {
+        try {
+          const res = await fetch(`${this.apiBase}/api/attacks/cancel`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer gcs-sim-token-secret-2026' },
+          });
+          const d = await res.json();
+          this.notifyToast(d.data?.message || 'Attack cancellation signaled.', 'info');
+        } catch (e) {
+          this.notifyToast('Failed to cancel attack: ' + e.message, 'error');
+        }
+      });
+    }
     if (btnLaunch) {
       btnLaunch.addEventListener('click', () => this.launchAttack());
     }
@@ -183,6 +198,21 @@ export class AttackConsole {
 
     this.isExecuting = true;
     const btnLaunch = document.getElementById('btn-launch-attack');
+    const btnCancel = document.getElementById('btn-cancel-attack');
+    if (btnCancel) {
+      btnCancel.addEventListener('click', async () => {
+        try {
+          const res = await fetch(`${this.apiBase}/api/attacks/cancel`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer gcs-sim-token-secret-2026' },
+          });
+          const d = await res.json();
+          this.notifyToast(d.data?.message || 'Attack cancellation signaled.', 'info');
+        } catch (e) {
+          this.notifyToast('Failed to cancel attack: ' + e.message, 'error');
+        }
+      });
+    }
     if (btnLaunch) {
       btnLaunch.disabled = true;
       btnLaunch.textContent = 'EXECUTING SCENARIO...';

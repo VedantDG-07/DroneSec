@@ -15,6 +15,7 @@ export class SecurityPanel {
     this.currentMode = 'UNSECURED';
     this.onModeChangeCallbacks = [];
     this.onToastCallbacks = [];
+    this.onStatusCallbacks = [];
 
     this.bindDomEvents();
     this.fetchSecurityStatus();
@@ -53,6 +54,7 @@ export class SecurityPanel {
     const mode = data.current_mode || data.active_mode || 'UNSECURED';
     this.currentMode = mode;
     this.updateHeaderModeButtons(mode);
+    this.onStatusCallbacks.forEach((cb) => cb(data));
 
     // Update Cryptographic indicators
     const cipherEl = document.getElementById('sec-cipher-name');
@@ -139,6 +141,10 @@ export class SecurityPanel {
 
   onToast(callback) {
     this.onToastCallbacks.push(callback);
+  }
+
+  onStatus(callback) {
+    this.onStatusCallbacks.push(callback);
   }
 
   notifyModeChange(mode) {

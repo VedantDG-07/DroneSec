@@ -24,6 +24,8 @@ from backend.app.api.schemas import (
     PositionModel,
     SecurityModeRequest,
     SecurityModeResponseData,
+    SecurityComponentToggleRequest,
+    SecurityComponentToggleResponseData,
     SecurityStatusData,
     StandardErrorResponse,
     StandardResponse,
@@ -422,6 +424,43 @@ async def post_security_mode(
 
 
 @router.post(
+    "/api/security/component",
+    response_model=StandardResponse[SecurityComponentToggleResponseData],
+    summary="Toggle Security Component (Attach/Detach)",
+)
+async def post_security_component(
+    request: Request,
+    request_body: SecurityComponentToggleRequest,
+    security_service: SecurityService = Depends(get_security_service),
+) -> Any:
+    """Dynamically attach or detach an individual security component."""
+    try:
+        verify_operator_authorization(request, security_service)
+    except SecurityPipelineError as err:
+        err_envelope = StandardErrorResponse(
+            error=ErrorDetail(code=err.error_code, message=err.message)
+        )
+        return JSONResponse(status_code=err.status_code, content=err_envelope.model_dump())
+
+    try:
+        result = security_service.set_component_state(
+            component=request_body.component,
+            enabled=request_body.enabled,
+            reason=request_body.reason or "",
+        )
+    except ValueError as val_err:
+        err_envelope = StandardErrorResponse(
+            error=ErrorDetail(
+                code="INVALID_COMPONENT",
+                message=str(val_err),
+            )
+        )
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content=err_envelope.model_dump())
+
+    return StandardResponse(data=SecurityComponentToggleResponseData(**result))
+
+
+@router.post(
     "/api/attacks/cancel",
     summary="Cancel Active Cyberattack Scenario",
 )
@@ -552,6 +591,27 @@ async def post_pack_command(
         return StandardResponse(data={
             "payload": packed,
             "security_mode": mode.value,
+        })
+    elif not security_service.is_component_enabled("encryption"):
+        # Mode is ENCRYPTED_AUTHENTICATED but encryption component is detached
+        import uuid
+        from backend.app.security.message_protocol import SecurityHeader
+        header = SecurityHeader(
+            message_id=str(uuid.uuid4()),
+            sender_id=sender_id,
+            sequence_number=seq,
+            timestamp=time.time(),
+            security_mode=SecurityMode.UNSECURED,
+            key_id="sim_key_v1",
+        )
+        return StandardResponse(data={
+            "payload": {
+                "header": header.model_dump(mode="json"),
+                "command": command,
+                "parameters": parameters,
+                "client_id": sender_id,
+            },
+            "security_mode": "PLAINTEXT_WITH_HEADER",
         })
     else:  # ENCRYPTED_AUTHENTICATED
         packed = pack_encrypted_command(

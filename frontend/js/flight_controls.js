@@ -7,6 +7,7 @@
  *
  * Implements client-side FSM state rules to disable invalid buttons
  * while letting the backend remain the authoritative validator.
+ * Synchronizes sequence numbers with backend anti-replay filter.
  */
 
 export class FlightControls {
@@ -15,13 +16,40 @@ export class FlightControls {
     this.currentFlightState = 'DISARMED';
     this.stepDistance = 2.0; // Default 2.0m step
     this.isSubmitting = false;
-    this.sequenceNumber = 1;
+
+    // Persist and synchronize sequence numbers across page reloads
+    const cachedSeq = parseInt(sessionStorage.getItem('dronesec_flight_seq') || '0', 10);
+    this.sequenceNumber = Math.max(cachedSeq + 1, 1);
 
     this.onCommandResultCallbacks = [];
     this.onToastCallbacks = [];
 
     this.bindDomEvents();
     this.bindKeyboardShortcuts();
+    this.updateButtonStates();
+    this.fetchSecurityStatus();
+  }
+
+  syncSequenceNumber(highestSeq) {
+    if (typeof highestSeq === 'number' && highestSeq >= this.sequenceNumber) {
+      this.sequenceNumber = highestSeq + 1;
+      try {
+        sessionStorage.setItem('dronesec_flight_seq', String(this.sequenceNumber));
+      } catch (_) {}
+    }
+  }
+
+  async fetchSecurityStatus() {
+    try {
+      const resp = await fetch(`${this.apiBase}/api/security/status`);
+      if (resp.ok) {
+        const body = await resp.json();
+        const highest = body.data?.replay_protection?.highest_sequence_number;
+        if (typeof highest === 'number') {
+          this.syncSequenceNumber(highest);
+        }
+      }
+    } catch (_) {}
   }
 
   bindDomEvents() {
@@ -75,29 +103,31 @@ export class FlightControls {
       // Suppress OS key-repeat events — only process the initial keydown stroke
       if (e.repeat) return;
 
+      const isAirborne = ['HOVERING', 'MOVING'].includes(this.currentFlightState);
+
       const key = e.key.toUpperCase();
       switch (key) {
         case 'W':
-          this.sendCommand('MOVE_FORWARD', { distance_meters: this.stepDistance });
+          if (isAirborne) this.sendCommand('MOVE_FORWARD', { distance_meters: this.stepDistance });
           break;
         case 'S':
-          this.sendCommand('MOVE_BACKWARD', { distance_meters: this.stepDistance });
+          if (isAirborne) this.sendCommand('MOVE_BACKWARD', { distance_meters: this.stepDistance });
           break;
         case 'A':
-          this.sendCommand('MOVE_LEFT', { distance_meters: this.stepDistance });
+          if (isAirborne) this.sendCommand('MOVE_LEFT', { distance_meters: this.stepDistance });
           break;
         case 'D':
-          this.sendCommand('MOVE_RIGHT', { distance_meters: this.stepDistance });
+          if (isAirborne) this.sendCommand('MOVE_RIGHT', { distance_meters: this.stepDistance });
           break;
         case 'R':
-          this.sendCommand('MOVE_UP', { distance_meters: this.stepDistance });
+          if (isAirborne) this.sendCommand('MOVE_UP', { distance_meters: this.stepDistance });
           break;
         case 'F':
-          this.sendCommand('MOVE_DOWN', { distance_meters: this.stepDistance });
+          if (isAirborne) this.sendCommand('MOVE_DOWN', { distance_meters: this.stepDistance });
           break;
         case ' ':
           e.preventDefault();
-          this.sendCommand('STOP');
+          if (isAirborne) this.sendCommand('STOP');
           break;
       }
     });
@@ -135,6 +165,11 @@ export class FlightControls {
     if (this.isSubmitting) return;
 
     this.isSubmitting = true;
+    const seq = this.sequenceNumber++;
+    try {
+      sessionStorage.setItem('dronesec_flight_seq', String(this.sequenceNumber));
+    } catch (_) {}
+
     let payload = {
       command: command,
       parameters: parameters,
@@ -151,7 +186,7 @@ export class FlightControls {
             command: command,
             parameters: parameters,
             sender_id: 'GCS-PRIMARY',
-            sequence_number: this.sequenceNumber++,
+            sequence_number: seq,
           }),
         });
         if (packResp.ok) {
@@ -183,6 +218,16 @@ export class FlightControls {
         const err = result.error || {};
         const code = err.code || 'COMMAND_FAILED';
         const msg = err.message || 'Execution rejected by drone engine.';
+
+        // Automatic replay sequence recovery: if server rejected for replay, resync sequence
+        if (code === 'REPLAY_ATTACK_DETECTED') {
+          await this.fetchSecurityStatus();
+          this.sequenceNumber = Math.max(this.sequenceNumber, (seq + 64));
+          try {
+            sessionStorage.setItem('dronesec_flight_seq', String(this.sequenceNumber));
+          } catch (_) {}
+        }
+
         this.notifyToast(`[${code}] ${msg}`, 'error');
         this.notifyCommandResult({ command, success: false, error: err });
       }
