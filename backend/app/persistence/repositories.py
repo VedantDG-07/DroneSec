@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sqlite3
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -82,28 +83,53 @@ class CommandLogRepository:
         conn = self._db.get_connection()
         try:
             with conn:
-                conn.execute(
-                    """
-                    INSERT INTO command_logs (
-                        id, timestamp, client_id, command, parameters, status,
-                        state_version_before, state_version_after, error_code,
-                        error_message, execution_duration_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """,
-                    (
-                        record_id,
-                        record_time,
-                        client_id,
-                        command,
-                        param_json,
-                        status,
-                        state_version_before,
-                        state_version_after,
-                        error_code,
-                        error_message,
-                        execution_duration_ms,
-                    ),
-                )
+                try:
+                    conn.execute(
+                        """
+                        INSERT INTO command_logs (
+                            id, timestamp, client_id, command, parameters, status,
+                            state_version_before, state_version_after, error_code,
+                            error_message, execution_duration_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (
+                            record_id,
+                            record_time,
+                            client_id,
+                            command,
+                            param_json,
+                            status,
+                            state_version_before,
+                            state_version_after,
+                            error_code,
+                            error_message,
+                            execution_duration_ms,
+                        ),
+                    )
+                except sqlite3.IntegrityError:
+                    record_id = f"{record_id}_dup_{int(time.time()*1000)}"
+                    conn.execute(
+                        """
+                        INSERT INTO command_logs (
+                            id, timestamp, client_id, command, parameters, status,
+                            state_version_before, state_version_after, error_code,
+                            error_message, execution_duration_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (
+                            record_id,
+                            record_time,
+                            client_id,
+                            command,
+                            param_json,
+                            status,
+                            state_version_before,
+                            state_version_after,
+                            error_code,
+                            error_message,
+                            execution_duration_ms,
+                        ),
+                    )
         finally:
             conn.close()
 

@@ -155,6 +155,7 @@ class SecurityStatusData(BaseModel):
     algorithms: dict[str, str]
     replay_protection: dict[str, Any]
     rate_limiting: dict[str, Any]
+    components: Optional[dict[str, bool]] = None
 
 
 class SecurityModeRequest(BaseModel):
@@ -172,6 +173,26 @@ class SecurityModeResponseData(BaseModel):
     previous_mode: str
     new_mode: str
     transition_timestamp: float
+
+
+class SecurityComponentToggleRequest(BaseModel):
+    """Payload for POST /api/security/component."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    component: str
+    enabled: bool
+    reason: Optional[str] = ""
+
+
+class SecurityComponentToggleResponseData(BaseModel):
+    """Response data for POST /api/security/component."""
+
+    component: str
+    enabled: bool
+    previous: bool
+    active_mode: str
+    components: dict[str, bool]
 
 
 # --- Cyberattack Simulator Models ---
